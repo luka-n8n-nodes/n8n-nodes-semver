@@ -18,10 +18,10 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "homepage": "https://github.com/luka-mimi/n8n-nodes-semver#readme",
+  "homepage": "https://github.com/luka-n8n-nodes/n8n-nodes-semver#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luka-mimi/n8n-nodes-semver.git"
+    "url": "git+https://github.com/luka-n8n-nodes/n8n-nodes-semver.git"
   },
   "engines": {
     "node": ">=20.15"
