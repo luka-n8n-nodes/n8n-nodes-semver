@@ -5,7 +5,7 @@ import type {
 	INodeTypeDescription,
 	IDataObject,
 } from 'n8n-workflow';
-import { NodeConnectionType, ApplicationError } from 'n8n-workflow';
+import { NodeConnectionTypes, ApplicationError } from 'n8n-workflow';
 
 import * as semver from 'semver';
 
@@ -21,8 +21,8 @@ export class Semver implements INodeType {
 		defaults: {
 			name: 'Semver',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [],
 		requestDefaults: {
 			headers: {

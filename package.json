@@ -32,8 +32,10 @@
     "dev": "tsc --watch",
     "format": "prettier nodes --write",
     "lint": "eslint nodes package.json",
-    "lintfix": "eslint nodes package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes package.json"
+    "prepublishOnly": "n8n-node prerelease",
+    "build:watch": "tsc --watch",
+    "lint:fix": "eslint nodes package.json --fix",
+    "release": "n8n-node release"
   },
   "files": [
     "dist"
@@ -43,15 +45,19 @@
     "credentials": [],
     "nodes": [
       "dist/nodes/Semver/Semver.node.js"
-    ]
+    ],
+    "strict": false
   },
   "devDependencies": {
+    "@n8n/node-cli": "*",
+    "@types/semver": "^7.8.0",
     "@typescript-eslint/parser": "^8.66.0",
     "eslint": "^8.57.1",
     "eslint-plugin-n8n-nodes-base": "^1.16.3",
     "gulp": "^5.0.0",
-    "prettier": "^3.9.6",
-    "typescript": "^5.9.3"
+    "prettier": "3.8.3",
+    "release-it": "20.2.0",
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "n8n-workflow": "*"

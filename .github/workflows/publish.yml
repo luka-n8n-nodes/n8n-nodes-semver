@@ -1,243 +1,102 @@
-name: 自动发布到NPM和GitHub Release
+# Publishes this n8n community node package to npm on every version tag push.
+#
+# Starting May 1 2026, n8n requires all community nodes to be published via
+# GitHub Actions with npm provenance statements. This workflow satisfies that
+# requirement. Provenance lets anyone cryptographically verify that a package
+# was built by this exact workflow, from this exact repository and commit.
+#
+# ─── PREREQUISITES ─────────────────────────────────────────────────────────────
+#
+# @n8n/node-cli ≥ 0.23.0 is required. Earlier versions do not support the
+# provenance flag passed by `npm run release` in CI, and the publish step will
+# fail. Check the version installed in this project with:
+#
+#   npm list @n8n/node-cli
+#
+# To upgrade:
+#
+#   npm install --save-dev @n8n/node-cli@latest
+#
+# ─── ONE-TIME SETUP ────────────────────────────────────────────────────────────
+#
+# Option A — OIDC Trusted Publishing (recommended, no long-lived secrets):
+#   1. Log in to npmjs.com and open your package's settings.
+#   2. Under "Publish access" → "Trusted Publishers", click "Add a publisher".
+#   3. Select GitHub Actions and fill in:
+#        Repository owner: luka-n8n-nodes
+#        Repository name:  n8n-nodes-semver
+#        Workflow name:    publish.yml
+#        Environment:      (leave blank unless you use GitHub Environments)
+#   4. Leave the NPM_TOKEN secret unset in this repository. GitHub's OIDC
+#      token is used instead — no secret ever touches your repo settings.
+#
+# Option B — npm Automation Token (fallback):
+#   1. On npmjs.com: Access Tokens → Generate New Token → Granular Access Token.
+#      Scope it to this package with "Read and write" publish permission.
+#   2. In GitHub: Settings → Secrets and variables → Actions → New secret.
+#      Name it NPM_TOKEN and paste the token value.
+#
+# Both options work with --provenance. Provenance is signed by GitHub's OIDC
+# infrastructure regardless of how npm authentication is handled.
+#
+# ─── TAG CONVENTION ────────────────────────────────────────────────────────────
+#
+# This workflow triggers on tags matching "*.*.*" (e.g. 0.2.0).
+# If you prefer tags with a "v" prefix (e.g. v0.2.0), change the filter to:
+#   tags: ['v*.*.*']
+#
+# ─── RELEASE PROCESS ───────────────────────────────────────────────────────────
+#
+# Run the following command locally to start an interactive release:
+#
+#   npm run release
+#
+# This will lint, build, prompt for a version bump, update the changelog,
+# commit, tag, and push — which triggers this workflow to publish to npm.
+
+name: Publish
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: '版本类型'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
+      # Matches 0.1.0, 1.2.3, 2.0.0-rc.1, etc.
+      # See "TAG CONVENTION" above if you prefer tags with a "v" prefix.
+      - '*.*.*'
 
 jobs:
   publish:
+    name: Publish to npm
     runs-on: ubuntu-latest
-    environment: 正式环境  # ⬅️ 加上这一行！
+
     permissions:
-      contents: write
-      packages: write
+      # Required to mint an OIDC token for npm provenance attestation.
       id-token: write
+      # Scoped down from the default (write) for least-privilege publishing.
+      contents: read
 
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-      - name: 设置Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 'lts/*'
           cache: 'npm'
-          always-auth: true
+          registry-url: 'https://registry.npmjs.org'
 
-      - name: 更新npm版本
-        run: npm install -g npm@latest
-
-      - name: 安装依赖
+      - name: Install dependencies
         run: npm ci
 
-      - name: 运行代码检查
-        run: npm run lint
-
-      - name: 构建项目
-        run: npm run build --if-present
-
-      - name: 配置Git用户
+      - name: Release
+        # Publishes to npm with a provenance attestation (requires id-token: write above).
+        # Lint and build run automatically as part of the release process.
+        #
+        # Option A (OIDC): leave NPM_TOKEN unset — the token step is skipped and
+        # npm uses the OIDC exchange instead.
+        # Option B (token): set NPM_TOKEN in repo secrets — it is written to
+        # .npmrc here before publishing.
         run: |
-          git config --local user.email "luka.cat.mimi@gmail.com"
-          git config --local user.name "luka"
-
-      - name: 更新版本号（手动触发）
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          NEW_VERSION=$(npm version ${{ github.event.inputs.version_type }} --no-git-tag-version)
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          git add package.json package-lock.json
-          git commit -m "chore: bump version to $NEW_VERSION"
-          git tag $NEW_VERSION
-          git push origin HEAD --follow-tags
-
-      - name: 获取版本号（标签触发）
-        if: github.event_name == 'push'
-        run: |
-          echo "NEW_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: 验证构建产物
-        run: |
-          echo "检查dist目录内容:"
-          ls -la dist/
-          echo "检查主要文件是否存在:"
-          test -f dist/nodes/Semver/Semver.node.js && echo "✅ Semver.node.js 存在"
-          test -f dist/nodes/Semver/semver.svg && echo "✅ semver.svg 存在"
-          test -f dist/package.json && echo "✅ dist/package.json 存在"
-
-      - name: 发布到NPM
-        run: |
-          npm publish
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm run release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: 生成变更日志
-        id: changelog
-        run: |
-          if [ -f CHANGELOG.md ]; then
-            # 如果存在CHANGELOG.md，尝试提取当前版本的变更内容
-            CHANGELOG=$(sed -n "/## \[${{ env.NEW_VERSION }}\]/,/## \[/p" CHANGELOG.md | head -n -1)
-            if [ -z "$CHANGELOG" ]; then
-              # 如果没找到对应版本的变更日志，生成基于git提交的变更日志
-              CHANGELOG=$(cat << 'EOL'
-          🎉 版本 ${{ env.NEW_VERSION }} 发布
-
-          ### 📝 本次更新
-          EOL
-              )
-
-              # 获取上一个标签
-              LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-
-              if [ -n "$LAST_TAG" ]; then
-                echo "从标签 $LAST_TAG 到当前版本的变更:" >> temp_changelog.txt
-                echo "" >> temp_changelog.txt
-
-                # 获取提交历史并分类
-                git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges | while read -r commit_msg; do
-                  case "$commit_msg" in
-                    feat*|feature*) echo "- ✨ $commit_msg" >> temp_changelog.txt ;;
-                    fix*|bugfix*) echo "- 🐛 $commit_msg" >> temp_changelog.txt ;;
-                    docs*) echo "- 📚 $commit_msg" >> temp_changelog.txt ;;
-                    style*) echo "- 💄 $commit_msg" >> temp_changelog.txt ;;
-                    refactor*) echo "- ♻️ $commit_msg" >> temp_changelog.txt ;;
-                    test*) echo "- ✅ $commit_msg" >> temp_changelog.txt ;;
-                    chore*) echo "- 🔧 $commit_msg" >> temp_changelog.txt ;;
-                    *) echo "- 📦 $commit_msg" >> temp_changelog.txt ;;
-                  esac
-                done
-
-                if [ -s temp_changelog.txt ]; then
-                  CHANGELOG="$CHANGELOG
-          $(cat temp_changelog.txt)"
-                  rm -f temp_changelog.txt
-                fi
-              else
-                # 如果是首次发布，显示首次发布信息
-                CHANGELOG="$CHANGELOG
-          - 🎉 首次发布n8n-nodes-semver
-          - ✨ 完整支持Semantic Versioning操作
-          - 📦 包含8个功能模块，覆盖99%的semver函数"
-              fi
-
-              CHANGELOG="$CHANGELOG
-
-          ### 📦 安装方式
-          \`\`\`bash
-          npm install @luka-cat-mimi/n8n-nodes-semver
-          \`\`\`
-
-          ### 🔗 相关链接
-          - [📖 使用文档](https://github.com/luka-mimi/n8n-nodes-semver#readme)
-          - [📦 NPM包](https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver)
-          - [🐛 问题反馈](https://github.com/luka-mimi/n8n-nodes-semver/issues)"
-            fi
-          else
-            # 如果不存在CHANGELOG.md，生成基于git提交的变更日志
-            CHANGELOG="🎉 版本 ${{ env.NEW_VERSION }} 发布
-
-          ### 📝 本次更新"
-
-            # 获取上一个标签
-            LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-
-            if [ -n "$LAST_TAG" ]; then
-              echo "检测到上一个版本: $LAST_TAG"
-
-              # 获取提交历史并分类
-              HAS_CHANGES=false
-              while read -r commit_msg; do
-                if [ -n "$commit_msg" ]; then
-                  HAS_CHANGES=true
-                  case "$commit_msg" in
-                    feat*|feature*) CHANGELOG="$CHANGELOG
-          - ✨ $commit_msg" ;;
-                    fix*|bugfix*) CHANGELOG="$CHANGELOG
-          - 🐛 $commit_msg" ;;
-                    docs*) CHANGELOG="$CHANGELOG
-          - 📚 $commit_msg" ;;
-                    style*) CHANGELOG="$CHANGELOG
-          - 💄 $commit_msg" ;;
-                    refactor*) CHANGELOG="$CHANGELOG
-          - ♻️ $commit_msg" ;;
-                    test*) CHANGELOG="$CHANGELOG
-          - ✅ $commit_msg" ;;
-                    chore*) CHANGELOG="$CHANGELOG
-          - 🔧 $commit_msg" ;;
-                    *) CHANGELOG="$CHANGELOG
-          - 📦 $commit_msg" ;;
-                  esac
-                fi
-              done << EOF
-          $(git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges)
-          EOF
-
-              if [ "$HAS_CHANGES" = false ]; then
-                CHANGELOG="$CHANGELOG
-          - 🔧 版本维护更新"
-              fi
-            else
-              # 首次发布
-              CHANGELOG="$CHANGELOG
-          - 🎉 首次发布n8n-nodes-semver
-          - ✨ 完整支持Semantic Versioning操作
-          - 📦 包含8个功能模块：验证、比较、范围、递增、解析、清理、强制转换、排序
-          - ✅ 覆盖semver 99%的函数
-          - 🔧 完善的TypeScript类型支持
-          - 🌍 英文界面，符合国际化标准"
-            fi
-
-            CHANGELOG="$CHANGELOG
-
-          ### 📦 安装方式
-          \`\`\`bash
-          npm install @luka-cat-mimi/n8n-nodes-semver
-          \`\`\`
-
-          ### 🔗 相关链接
-          - [📖 使用文档](https://github.com/luka-mimi/n8n-nodes-semver#readme)
-          - [📦 NPM包](https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver)
-          - [🐛 问题反馈](https://github.com/luka-mimi/n8n-nodes-semver/issues)"
-          fi
-
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: 创建GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ env.NEW_VERSION }}
-          name: ${{ env.NEW_VERSION }}
-          body: ${{ steps.changelog.outputs.CHANGELOG }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 发布成功通知
-        run: |
-          echo "🎉 发布成功！"
-          echo "📦 NPM包: https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver"
-          echo "🚀 GitHub Release: https://github.com/luka-mimi/n8n-nodes-semver/releases/tag/${{ env.NEW_VERSION }}"
-          echo "📋 安装命令: npm install @luka-cat-mimi/n8n-nodes-semver"
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
