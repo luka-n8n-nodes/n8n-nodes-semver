@@ -1,13 +1,63 @@
 import type {
+	IDataObject,
 	IExecuteFunctions,
+	INode,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	IDataObject,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, ApplicationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import * as semver from 'semver';
+
+function toPlainSemVer(parsed: semver.SemVer | null): IDataObject | null {
+	if (!parsed) {
+		return null;
+	}
+
+	const json: IDataObject = {
+		version: parsed.version,
+		major: parsed.major,
+		minor: parsed.minor,
+		patch: parsed.patch,
+	};
+
+	if (parsed.prerelease.length > 0) {
+		json.prerelease = [...parsed.prerelease];
+	}
+
+	if (parsed.build.length > 0) {
+		json.build = [...parsed.build];
+	}
+
+	if (parsed.raw !== parsed.version) {
+		json.raw = parsed.raw;
+	}
+
+	return json;
+}
+
+/** 标量/数组包一层 value；对象结果直接作为 json */
+function toOutputJson(value: unknown): IDataObject {
+	if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+		return value as IDataObject;
+	}
+
+	return { value: value as IDataObject[keyof IDataObject] };
+}
+
+function requireValue<T>(
+	value: T | null | undefined,
+	message: string,
+	node: INode,
+	itemIndex: number,
+): T {
+	if (value === null || value === undefined) {
+		throw new NodeOperationError(node, message, { itemIndex });
+	}
+
+	return value;
+}
 
 export class Semver implements INodeType {
 	description: INodeTypeDescription = {
@@ -21,15 +71,9 @@ export class Semver implements INodeType {
 		defaults: {
 			name: 'Semver',
 		},
+		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
-		credentials: [],
-		requestDefaults: {
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-			},
-		},
 		properties: [
 			{
 				displayName: 'Resource',
@@ -488,7 +532,17 @@ export class Semver implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['range'],
-						operation: ['satisfies', 'validRange', 'maxSatisfying', 'minSatisfying', 'minVersion', 'gtr', 'ltr', 'outside', 'simplifyRange'],
+						operation: [
+							'satisfies',
+							'validRange',
+							'maxSatisfying',
+							'minSatisfying',
+							'minVersion',
+							'gtr',
+							'ltr',
+							'outside',
+							'simplifyRange',
+						],
 					},
 				},
 				default: '',
@@ -711,257 +765,178 @@ export class Semver implements INodeType {
 				const operation = this.getNodeParameter('operation', i) as string;
 				const options = this.getNodeParameter('options', i) as IDataObject;
 
-				let result: any;
+				let json: IDataObject;
 
 				switch (resource) {
 					case 'validation':
 						if (operation === 'valid') {
 							const version = this.getNodeParameter('version', i) as string;
-							result = {
-								operation: 'valid',
-								version,
-								isValid: semver.valid(version) !== null,
-								parsedVersion: semver.valid(version),
-							};
+							// 校验类操作：返回是否合法，不把 null 当成功结果
+							json = toOutputJson(semver.valid(version, options) !== null);
 						} else if (operation === 'clean') {
 							const version = this.getNodeParameter('version', i) as string;
-							result = {
-								operation: 'clean',
-								version,
-								cleanedVersion: semver.clean(version, options),
-							};
+							json = toOutputJson(
+								requireValue(
+									semver.clean(version, options),
+									`Invalid version: ${version}`,
+									this.getNode(),
+									i,
+								),
+							);
+						} else {
+							throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`, {
+								itemIndex: i,
+							});
 						}
 						break;
 
-					case 'comparison':
+					case 'comparison': {
 						const version1 = this.getNodeParameter('version1', i) as string;
 						const version2 = this.getNodeParameter('version2', i) as string;
 
 						switch (operation) {
 							case 'gt':
-								result = {
-									operation: 'gt',
-									version1,
-									version2,
-									result: semver.gt(version1, version2, options),
-								};
+								json = toOutputJson(semver.gt(version1, version2, options));
 								break;
 							case 'gte':
-								result = {
-									operation: 'gte',
-									version1,
-									version2,
-									result: semver.gte(version1, version2, options),
-								};
+								json = toOutputJson(semver.gte(version1, version2, options));
 								break;
 							case 'lt':
-								result = {
-									operation: 'lt',
-									version1,
-									version2,
-									result: semver.lt(version1, version2, options),
-								};
+								json = toOutputJson(semver.lt(version1, version2, options));
 								break;
 							case 'lte':
-								result = {
-									operation: 'lte',
-									version1,
-									version2,
-									result: semver.lte(version1, version2, options),
-								};
+								json = toOutputJson(semver.lte(version1, version2, options));
 								break;
 							case 'eq':
-								result = {
-									operation: 'eq',
-									version1,
-									version2,
-									result: semver.eq(version1, version2, options),
-								};
+								json = toOutputJson(semver.eq(version1, version2, options));
 								break;
 							case 'neq':
-								result = {
-									operation: 'neq',
-									version1,
-									version2,
-									result: semver.neq(version1, version2, options),
-								};
+								json = toOutputJson(semver.neq(version1, version2, options));
 								break;
 							case 'compare':
-								result = {
-									operation: 'compare',
-									version1,
-									version2,
-									result: semver.compare(version1, version2, options),
-								};
+								json = toOutputJson(semver.compare(version1, version2, options));
 								break;
 							case 'rcompare':
-								result = {
-									operation: 'rcompare',
-									version1,
-									version2,
-									result: semver.rcompare(version1, version2, options),
-								};
+								json = toOutputJson(semver.rcompare(version1, version2, options));
 								break;
 							case 'compareBuild':
-								result = {
-									operation: 'compareBuild',
-									version1,
-									version2,
-									result: semver.compareBuild(version1, version2, options),
-								};
+								json = toOutputJson(semver.compareBuild(version1, version2, options));
 								break;
 							case 'compareLoose':
-								result = {
-									operation: 'compareLoose',
-									version1,
-									version2,
-									result: semver.compareLoose(version1, version2),
-								};
+								json = toOutputJson(semver.compareLoose(version1, version2));
 								break;
 							case 'diff':
-								result = {
-									operation: 'diff',
-									version1,
-									version2,
-									result: semver.diff(version1, version2),
-								};
+								// 版本相等时 diff 为 null，属于有效结果
+								json = toOutputJson(semver.diff(version1, version2));
 								break;
+							default:
+								throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`, {
+									itemIndex: i,
+								});
 						}
 						break;
+					}
 
 					case 'range':
 						switch (operation) {
 							case 'satisfies': {
 								const version = this.getNodeParameter('version', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'satisfies',
-									version,
-									range,
-									result: semver.satisfies(version, range, options),
-								};
+								json = toOutputJson(semver.satisfies(version, range, options));
 								break;
 							}
 							case 'validRange': {
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'validRange',
-									range,
-									result: semver.validRange(range, options),
-								};
+								json = toOutputJson(semver.validRange(range, options) !== null);
 								break;
 							}
 							case 'maxSatisfying': {
 								const versionsStr = this.getNodeParameter('versions', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								const versions = versionsStr.split(',').map(v => v.trim());
-								result = {
-									operation: 'maxSatisfying',
-									versions,
-									range,
-									result: semver.maxSatisfying(versions, range, options),
-								};
+								const versions = versionsStr.split(',').map((v) => v.trim());
+								json = toOutputJson(
+									requireValue(
+										semver.maxSatisfying(versions, range, options),
+										`No version satisfies range: ${range}`,
+										this.getNode(),
+										i,
+									),
+								);
 								break;
 							}
 							case 'minSatisfying': {
 								const versionsStr = this.getNodeParameter('versions', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								const versions = versionsStr.split(',').map(v => v.trim());
-								result = {
-									operation: 'minSatisfying',
-									versions,
-									range,
-									result: semver.minSatisfying(versions, range, options),
-								};
+								const versions = versionsStr.split(',').map((v) => v.trim());
+								json = toOutputJson(
+									requireValue(
+										semver.minSatisfying(versions, range, options),
+										`No version satisfies range: ${range}`,
+										this.getNode(),
+										i,
+									),
+								);
 								break;
 							}
 							case 'minVersion': {
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'minVersion',
-									range,
-									result: semver.minVersion(range, options),
-								};
+								json = toOutputJson(
+									requireValue(
+										toPlainSemVer(semver.minVersion(range, options)),
+										`Invalid range: ${range}`,
+										this.getNode(),
+										i,
+									),
+								);
 								break;
 							}
 							case 'gtr': {
 								const version = this.getNodeParameter('version', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'gtr',
-									version,
-									range,
-									result: semver.gtr(version, range, options),
-								};
+								json = toOutputJson(semver.gtr(version, range, options));
 								break;
 							}
 							case 'ltr': {
 								const version = this.getNodeParameter('version', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'ltr',
-									version,
-									range,
-									result: semver.ltr(version, range, options),
-								};
+								json = toOutputJson(semver.ltr(version, range, options));
 								break;
 							}
 							case 'outside': {
 								const version = this.getNodeParameter('version', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
 								const hilo = this.getNodeParameter('hilo', i) as '>' | '<';
-								result = {
-									operation: 'outside',
-									version,
-									range,
-									hilo,
-									result: semver.outside(version, range, hilo, options),
-								};
+								json = toOutputJson(semver.outside(version, range, hilo, options));
 								break;
 							}
 							case 'intersects': {
 								const range1 = this.getNodeParameter('range1', i) as string;
 								const range2 = this.getNodeParameter('range2', i) as string;
-								result = {
-									operation: 'intersects',
-									range1,
-									range2,
-									result: semver.intersects(range1, range2, options),
-								};
+								json = toOutputJson(semver.intersects(range1, range2, options));
 								break;
 							}
 							case 'simplifyRange': {
 								const versionsStr = this.getNodeParameter('versions', i) as string;
 								const range = this.getNodeParameter('range', i) as string;
-								const versions = versionsStr.split(',').map(v => v.trim());
-								result = {
-									operation: 'simplifyRange',
-									versions,
-									range,
-									result: semver.simplifyRange(versions, range, options),
-								};
+								const versions = versionsStr.split(',').map((v) => v.trim());
+								json = toOutputJson(semver.simplifyRange(versions, range, options));
 								break;
 							}
 							case 'subset': {
 								const range1 = this.getNodeParameter('range1', i) as string;
 								const range2 = this.getNodeParameter('range2', i) as string;
-								result = {
-									operation: 'subset',
-									range1,
-									range2,
-									result: semver.subset(range1, range2, options),
-								};
+								json = toOutputJson(semver.subset(range1, range2, options));
 								break;
 							}
 							case 'toComparators': {
 								const range = this.getNodeParameter('range', i) as string;
-								result = {
-									operation: 'toComparators',
-									range,
-									result: semver.toComparators(range, options),
-								};
+								json = toOutputJson(semver.toComparators(range, options));
 								break;
 							}
+							default:
+								throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`, {
+									itemIndex: i,
+								});
 						}
 						break;
 
@@ -971,23 +946,23 @@ export class Semver implements INodeType {
 						const identifier = this.getNodeParameter('identifier', i, '') as string;
 						const identifierBase = this.getNodeParameter('identifierBase', i, '0') as string;
 
-																	let incResult: string | null;
+						let newVersion: string | null;
 						if (identifier && identifierBase === 'false') {
-							incResult = semver.inc(version, releaseType, identifier, false);
+							newVersion = semver.inc(version, releaseType, identifier, false);
 						} else if (identifier) {
-							incResult = semver.inc(version, releaseType, identifier);
+							newVersion = semver.inc(version, releaseType, identifier);
 						} else {
-							incResult = semver.inc(version, releaseType);
+							newVersion = semver.inc(version, releaseType);
 						}
 
-						result = {
-							operation: 'inc',
-							version,
-							releaseType,
-							identifier: identifier || undefined,
-							identifierBase: identifierBase,
-							result: incResult,
-						};
+						json = toOutputJson(
+							requireValue(
+								newVersion,
+								`Invalid version: ${version}`,
+								this.getNode(),
+								i,
+							),
+						);
 						break;
 					}
 
@@ -995,120 +970,115 @@ export class Semver implements INodeType {
 						const version = this.getNodeParameter('version', i) as string;
 
 						switch (operation) {
-							case 'parse':
-								const parsed = semver.parse(version, options);
-								result = {
-									operation: 'parse',
-									version,
-									result: parsed ? {
-										version: parsed.version,
-										major: parsed.major,
-										minor: parsed.minor,
-										patch: parsed.patch,
-										prerelease: parsed.prerelease,
-										build: parsed.build,
-										raw: parsed.raw,
-									} : null,
-								};
+							case 'parse': {
+								const parsed = requireValue(
+									toPlainSemVer(semver.parse(version, options)),
+									`Invalid version: ${version}`,
+									this.getNode(),
+									i,
+								);
+								json = toOutputJson(parsed);
 								break;
+							}
 							case 'major':
-								result = {
-									operation: 'major',
-									version,
-									result: semver.major(version, options),
-								};
+								json = toOutputJson(semver.major(version, options));
 								break;
 							case 'minor':
-								result = {
-									operation: 'minor',
-									version,
-									result: semver.minor(version, options),
-								};
+								json = toOutputJson(semver.minor(version, options));
 								break;
 							case 'patch':
-								result = {
-									operation: 'patch',
-									version,
-									result: semver.patch(version, options),
-								};
+								json = toOutputJson(semver.patch(version, options));
 								break;
-							case 'prerelease':
-								result = {
-									operation: 'prerelease',
-									version,
-									result: semver.prerelease(version, options),
-								};
+							case 'prerelease': {
+								// 版本不合法时报错；合法但无预发布信息时返回空数组
+								requireValue(
+									semver.parse(version, options),
+									`Invalid version: ${version}`,
+									this.getNode(),
+									i,
+								);
+								json = toOutputJson(semver.prerelease(version, options) ?? []);
 								break;
+							}
+							default:
+								throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`, {
+									itemIndex: i,
+								});
 						}
 						break;
 					}
 
 					case 'cleaning': {
 						const version = this.getNodeParameter('version', i) as string;
-						result = {
-							operation: 'clean',
-							version,
-							result: semver.clean(version, options),
-						};
+						json = toOutputJson(
+							requireValue(
+								semver.clean(version, options),
+								`Invalid version: ${version}`,
+								this.getNode(),
+								i,
+							),
+						);
 						break;
 					}
 
 					case 'coercion': {
 						const version = this.getNodeParameter('version', i) as string;
-						result = {
-							operation: 'coerce',
-							version,
-							result: semver.coerce(version, options),
-						};
+						json = toOutputJson(
+							requireValue(
+								toPlainSemVer(semver.coerce(version, options)),
+								`Unable to coerce version: ${version}`,
+								this.getNode(),
+								i,
+							),
+						);
 						break;
 					}
 
 					case 'sorting': {
 						const versionsStr = this.getNodeParameter('versions', i) as string;
-						const versions = versionsStr.split(',').map(v => v.trim());
+						const versions = versionsStr.split(',').map((v) => v.trim());
 
 						switch (operation) {
 							case 'sort':
-								result = {
-									operation: 'sort',
-									versions,
-									result: semver.sort(versions, options),
-								};
+								json = toOutputJson(semver.sort([...versions], options));
 								break;
 							case 'rsort':
-								result = {
-									operation: 'rsort',
-									versions,
-									result: semver.rsort(versions, options),
-								};
+								json = toOutputJson(semver.rsort([...versions], options));
 								break;
+							default:
+								throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`, {
+									itemIndex: i,
+								});
 						}
 						break;
 					}
 
 					default:
-						throw new ApplicationError(`Unknown resource: ${resource}`);
+						throw new NodeOperationError(this.getNode(), `Unknown resource: ${resource}`, {
+							itemIndex: i,
+						});
 				}
 
 				returnData.push({
-					json: {
-						...items[i].json,
-						result,
-					},
+					json,
 					pairedItem: { item: i },
 				});
 			} catch (error) {
+				const nodeError =
+					error instanceof NodeOperationError
+						? error
+						: new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
+
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: {
-							...items[i].json,
-							error: error.message,
+							error: nodeError.message,
 						},
 						pairedItem: { item: i },
 					});
 					continue;
 				}
-				throw error;
+				throw nodeError;
 			}
 		}
 

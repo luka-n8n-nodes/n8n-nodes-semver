@@ -3,66 +3,64 @@
   "version": "1.0.4",
   "description": "Semver node for n8n",
   "keywords": [
+    "n8n",
+    "n8n-node",
     "n8n-community-node-package",
     "semver",
     "n8n-nodes-semver",
-    "version",
-    "n8n"
+    "version"
   ],
   "license": "MIT",
-  "author": {
-    "name": "luka-cat",
-    "email": "luka.cat.mimi@gmail.com"
-  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "homepage": "https://github.com/luka-n8n-nodes/n8n-nodes-semver#readme",
+  "author": {
+    "name": "luka-cat",
+    "email": "luka.cat.mimi@gmail.com"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luka-n8n-nodes/n8n-nodes-semver.git"
+    "url": "https://github.com/luka-n8n-nodes/n8n-nodes-semver.git"
   },
   "engines": {
     "node": ">=20.15"
   },
   "main": "index.js",
   "scripts": {
-    "build": "npx rimraf dist && tsc && gulp build:icons",
-    "dev": "tsc --watch",
-    "format": "prettier nodes --write",
-    "lint": "eslint nodes package.json",
-    "prepublishOnly": "n8n-node prerelease",
+    "build": "n8n-node build",
     "build:watch": "tsc --watch",
-    "lint:fix": "eslint nodes package.json --fix",
-    "release": "n8n-node release"
+    "dev": "n8n-node dev",
+    "format": "prettier nodes --write",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
   },
   "files": [
     "dist"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
+    "strict": false,
     "credentials": [],
     "nodes": [
       "dist/nodes/Semver/Semver.node.js"
-    ],
-    "strict": false
+    ]
+  },
+  "dependencies": {
+    "semver": "^7.8.5"
   },
   "devDependencies": {
     "@n8n/node-cli": "*",
     "@types/semver": "^7.8.0",
-    "@typescript-eslint/parser": "^8.66.0",
-    "eslint": "^8.57.1",
-    "eslint-plugin-n8n-nodes-base": "^1.16.3",
-    "gulp": "^5.0.0",
+    "eslint": "9.39.4",
     "prettier": "3.8.3",
     "release-it": "20.2.0",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
-  },
-  "dependencies": {
-    "semver": "^7.8.5"
   }
 }

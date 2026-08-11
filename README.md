@@ -65,10 +65,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **Output:**
 ```json
 {
-  "operation": "valid",
-  "version": "1.2.3",
-  "isValid": true,
-  "parsedVersion": "1.2.3"
+  "value": true
 }
 ```
 
@@ -86,10 +83,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **Output:**
 ```json
 {
-  "operation": "gt",
-  "version1": "2.0.0",
-  "version2": "1.9.0",
-  "result": true
+  "value": true
 }
 ```
 
@@ -107,10 +101,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **Output:**
 ```json
 {
-  "operation": "satisfies",
-  "version": "1.2.3",
-  "range": "^1.0.0",
-  "result": true
+  "value": true
 }
 ```
 
@@ -121,21 +112,14 @@ npm install @luka-cat-mimi/n8n-nodes-semver
   "resource": "increment",
   "operation": "inc",
   "version": "1.2.3",
-  "releaseType": "minor",
-  "identifier": "alpha",
-  "identifierBase": "0"
+  "releaseType": "minor"
 }
 ```
 
 **Output:**
 ```json
 {
-  "operation": "inc",
-  "version": "1.2.3",
-  "releaseType": "minor",
-  "identifier": "alpha",
-  "identifierBase": "0",
-  "result": "1.3.0"
+  "value": "1.3.0"
 }
 ```
 
@@ -152,9 +136,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **Output:**
 ```json
 {
-  "operation": "sort",
-  "versions": ["2.0.0", "1.0.0", "1.5.0", "1.0.1"],
-  "result": ["1.0.0", "1.0.1", "1.5.0", "2.0.0"]
+  "value": ["1.0.0", "1.0.1", "1.5.0", "2.0.0"]
 }
 ```
 
@@ -232,7 +214,7 @@ Input Data → Semver (valid) → Filter (isValid=true) → Continue Processing
 ### 2. Version Comparison Chain
 
 ```
-Input Data → Semver (compare) → Switch (based on result) → Different Paths
+Input Data → Semver (compare) → Switch (based on value) → Different Paths
 ```
 
 ### 3. Dependency Range Checking

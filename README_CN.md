@@ -67,10 +67,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **输出：**
 ```json
 {
-  "operation": "valid",
-  "version": "1.2.3",
-  "isValid": true,
-  "parsedVersion": "1.2.3"
+  "value": true
 }
 ```
 
@@ -88,10 +85,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **输出：**
 ```json
 {
-  "operation": "gt",
-  "version1": "2.0.0",
-  "version2": "1.9.0",
-  "result": true
+  "value": true
 }
 ```
 
@@ -109,10 +103,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **输出：**
 ```json
 {
-  "operation": "satisfies",
-  "version": "1.2.3",
-  "range": "^1.0.0",
-  "result": true
+  "value": true
 }
 ```
 
@@ -123,21 +114,14 @@ npm install @luka-cat-mimi/n8n-nodes-semver
   "resource": "increment",
   "operation": "inc",
   "version": "1.2.3",
-  "releaseType": "minor",
-  "identifier": "alpha",
-  "identifierBase": "0"
+  "releaseType": "minor"
 }
 ```
 
 **输出：**
 ```json
 {
-  "operation": "inc",
-  "version": "1.2.3",
-  "releaseType": "minor",
-  "identifier": "alpha",
-  "identifierBase": "0",
-  "result": "1.3.0"
+  "value": "1.3.0"
 }
 ```
 
@@ -154,9 +138,7 @@ npm install @luka-cat-mimi/n8n-nodes-semver
 **输出：**
 ```json
 {
-  "operation": "sort",
-  "versions": ["2.0.0", "1.0.0", "1.5.0", "1.0.1"],
-  "result": ["1.0.0", "1.0.1", "1.5.0", "2.0.0"]
+  "value": ["1.0.0", "1.0.1", "1.5.0", "2.0.0"]
 }
 ```
 
