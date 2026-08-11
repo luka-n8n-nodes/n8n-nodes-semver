@@ -1,6 +1,6 @@
 {
   "name": "@luka-cat-mimi/n8n-nodes-semver",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Semver node for n8n",
   "keywords": [
     "n8n",
